@@ -1,0 +1,18 @@
+{
+  "repository": {
+    "url": "https://github.com/tifroz/macmongo"
+  },
+  "name": "macmongo",
+  "description": "A mongodb helper",
+  "version": "0.0.1",
+  "private": false,
+  "license" : "UNLICENSED",
+  "main": "lib/main",
+  "dependencies": {
+  	"underscore": "1.7.x",
+    "seq": "0.3.x",
+    "winston": "0.7.x",
+		"mongodb": "1.2.x"
+  },
+  "devDependencies": {},
+}
