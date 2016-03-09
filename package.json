@@ -14,5 +14,5 @@
     "winston": "0.7.x",
 		"mongodb": "1.2.x"
   },
-  "devDependencies": {},
+  "devDependencies": {}
 }
