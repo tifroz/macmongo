@@ -16,11 +16,13 @@ Seq = require('seq')
 
 BSON = mongodb.pure().BSON
 
-logger		= require 'logger'
+logger		= require 'maclogger'
 dbperf = {}
 
 
-MongoClient = (dbname, host, port, options) ->
+MongoClient = (dbname, host, port, options, loggerInstance) ->
+	if loggerInstance
+		logger = loggerInstance
 	collections = {}
 	if not dbname then throw new Error 'A database name must be provided to create a new db client'
 	logger.debug "Initializing MongoDb server #{host}:#{port} with options", options
