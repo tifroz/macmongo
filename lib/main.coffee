@@ -16,7 +16,6 @@ Seq = require('seq')
 
 BSON = mongodb.pure().BSON
 
-settings	= require('settings'); 
 logger		= require 'logger'
 dbperf = {}
 
