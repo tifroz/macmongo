@@ -16,30 +16,28 @@ Seq = require('seq')
 
 BSON = mongodb.pure().BSON
 
-logger		= require 'maclogger'
+logger		= console
 dbperf = {}
 
 
-MongoClient = (dbname, host, port, options, loggerInstance) ->
-	if loggerInstance
-		logger = loggerInstance
+MongoClient = (dbname, host, port, options) ->
 	collections = {}
 	if not dbname then throw new Error 'A database name must be provided to create a new db client'
-	logger.debug "Initializing MongoDb server #{host}:#{port} with options", options
+	logger.log "Initializing MongoDb server #{host}:#{port} with options", options
 	server = new mongodb.Server(host, port, options)
 	db = new mongodb.Db(dbname, server, {w: 1})
-	logger.debug "Created client for the '#{dbname}' db."
+	logger.log "Created client for the '#{dbname}' db."
 
 	shortCollectionName = (raw) ->
 		raw.split('.').pop()
 	addCollections = (cols, indexesDef) ->
-		logger.debug util.format("indexesDef at %j", indexesDef)
+		logger.log util.format("indexesDef at %j", indexesDef)
 		for col in cols
 			name = col.collectionName
 			if name.substr(0,6) isnt 'system'
 				if collections[name] is undefined
 					collections[name] = col
-					logger.debug "OK looking at indexes for collection #{name}"
+					logger.log "OK looking at indexes for collection #{name}"
 					if indexesDef[name] isnt undefined
 						for indexDef in indexesDef[name]
 							ensureIndexCallback = (name)->
@@ -47,7 +45,7 @@ MongoClient = (dbname, host, port, options, loggerInstance) ->
 									if err
 										logger.error("ensureIndex",err)
 									else
-										logger.debug util.format("Collection #{name} has index named #{indexName}")
+										logger.log util.format("Collection #{name} has index named #{indexName}")
 							
 							col.ensureIndex indexDef, background: true,  ensureIndexCallback(name)
 				
@@ -69,7 +67,7 @@ MongoClient = (dbname, host, port, options, loggerInstance) ->
 			.seq (cols) ->
 				addCollections(cols, params)
 				existing = _.pluck(cols, 'collectionName')
-				logger.debug("MongoClient.init: existing collections '#{existing}'")
+				logger.log("MongoClient.init: existing collections '#{existing}'")
 				missing = _.difference(names, existing)
 				if missing.length > 0
 					logger.info("MongoClient.init: missing collections #{missing}")
@@ -88,7 +86,87 @@ MongoClient = (dbname, host, port, options, loggerInstance) ->
 				logger.error("MongoClient.initialize #{boo}")
 				fn(boo)
 
-db =
+
+	###
+	* Connects the sysdb, local and shared databases to their respective databases
+	* and makes the collections available via thismodule.db.collectionname
+	* signature: params, [logger], [fn]
+	*		host: 127.0.0.1
+	* 	port: 3002
+	*		databases:
+	*			dbname1:
+	*				collection1: [<list of indexes>]
+	*				collection2: []
+	*			dbname2:
+	*				collection: []
+	*		options:
+	*			auto_reconnect: true
+	* etc..
+	*
+	* (For definition of options, see See https://mongodb.github.io/node-mongodb-native/api-generated/server.html?highlight=server for options)
+	* 
+	###
+class DB
+	configure: (params, lgger, fn) ->
+		if fn is undefined and lgger?.log is undefined
+			fn = lgger
+		else if lgger isnt undefined
+			logger = lgger
+
+		@_host = params.host
+		@_port = params.port
+		@_options = params.options
+		@databases = {}
+		logger.log("DB initializing...")
+		databases = @databases
+		db = @
+		dbnames = _.keys params?.databases
+		Seq(dbnames).flatten()
+			.seqEach (dbname)->
+				db.addDatabase dbname, params.databases[dbname], this
+			.seq ->
+				fn?()
+			.catch (err) ->
+				fn?(err)
+	
+	### 
+
+	* signature: dbname, [collectionsDef], [fn]
+	* collectionsDef is a plain object, e.g
+	* 	collection1: [<list of indexes>]
+	* 	collection1: [<list of indexes>]
+	* 	etc..
+	* 
+	
+	###
+	
+	addDatabase: (dbname, collectionsDef, fn)->
+		if fn is undefined
+			unless _.isArray collectionsDef
+				fn = collectionsDef
+		db = @
+		databases = @databases
+		Seq().seq ->
+			databases[dbname] = new MongoClient(dbname, db._host, db._port, db._options)
+			if dbname in _.keys(db)
+				logger.error "Conflicting database name, db.#{dbname} shortcut is unavailable, use db.databases.#{dbname}"
+			else
+				db[dbname] = databases[dbname]
+			databases[dbname].initialize collectionsDef, this
+		.seq ->
+			collectionNames = _.keys databases[dbname].getCollections()
+			intersect = _.intersection collectionNames, _.keys(db)
+			for collectionName in collectionNames
+				if collectionName in intersect
+					logger.warn "Conflicting collections name(s), db.#{collName} shortcut(s) unavailable, use db.#{dbname}.#{collName}"
+				else
+					logger.info "OK  db.#{collectionName} is a valid shortcut for db.databases.#{dbname}.#{collectionName}"
+					db[collectionName] = databases[dbname][collectionName]
+			fn?()
+		.catch (boo)->
+			fn?(boo)
+
+
 	###*
 	* A utility method to generate GUIDs on the fly
 	###
@@ -114,62 +192,12 @@ db =
 			res = o
 		return res
 
-	clients: {}
-
-	###*
-	* Connects the sysdb, local and shared clients to their respective databases
-	* and makes the collections available via thismodule.db.collectionname
-	* options:
-	*		host: 127.0.0.1
-	* 	port: 3002
-	*		databases:
-	*			dbname1:
-	*				collection1: [<list of indexes>]
-	*				collection2: []
-	*			dbname2:
-	*				collection: []
-	* etc..
-	###
-	initialize: (params, fn) ->
-		logger.debug("DB initializing...")
-		#clients = {}
-		collections = {}
-		dbnames = _.keys params?.databases
-		Seq(dbnames).flatten()
-			.seqEach (dbname)->
-				db.clients[dbname] = new MongoClient(dbname, params.host, params.port, params.options)
-				intersect = _.intersection _.keys(db.clients), _.keys(db)
-				if intersect.length > 0
-					fn(new Error("Conflicting database name(s): #{intersect}"))
-				else
-					_.extend db, db.clients
-				db.clients[dbname].initialize params.databases[dbname], this
-			.catch (err) ->
-				fn(err)
-			.seq ->
-				collections = []
-				for dbName in dbnames
-					intersect = _.intersection _.keys(db.clients[dbName].getCollections()), _.keys(db)
-					if intersect.length > 0
-						fn(new Error("Conflicting collection name(s): #{intersect}"))
-					else
-						logger.debug("Adding collections	#{_.keys(db.clients[dbName].getCollections())} to db (from the #{dbName} db)")
-					_.extend db, db.clients[dbName].getCollections()
-					collections = _.union collections, _.values(db.clients[dbName].getCollections())
-				this(null, collections)
-			.flatten()
-			.parEach (collection)->
-				if params.empty
-					logger.warning "Emptying collection #{collection.collectionName} (epmty=true)"
-					collection.remove {}, this
-				else
-					this()
-			.seq ->
-				setInterval db.dumpPerf, 10 * 60 * 1000 # Dump stats every 10min
-				logger.debug("DB initialized #{_.keys(db)}")
-				fn(null)
-			.catch (boo)->
-				fn(boo)
+	getCollectionNames: ->
+		collections = []
+		for name, database of @databases
+			logger.info "#{database} has #{_.keys(database.getCollections())}"
+			collections = collections.concat _.keys(database.getCollections())
+		return collections
 
 	###*
 	* Logs db performance & explain
@@ -184,9 +212,9 @@ db =
 					logger.warn('db.perf.query', cursor.selector)
 					logger.warn('db.perf.explain', doc)
 				else
-					logger.trace("db.perf.#{collectionName}","#{doc.nscanned} records scanned, #{doc.n} returned in #{doc.millis}ms")
-					logger.trace('db.perf.query', cursor.selector)
-					logger.trace('db.perf.explain', doc)
+					logger.log("db.perf.#{collectionName}","#{doc.nscanned} records scanned, #{doc.n} returned in #{doc.millis}ms")
+					logger.log('db.perf.query', cursor.selector)
+					logger.log('db.perf.explain', doc)
 				stats = dbperf[collectionName] ?= {total: 0, min: 0, max: 0, count: 0, collection: collectionName}
 				stats.min = Math.min(stats.min, doc.millis)
 				stats.max = Math.max(stats.max, doc.millis)
@@ -216,4 +244,4 @@ db =
 					fn(err)
 
 
-module.exports = db
+module.exports = new DB()
