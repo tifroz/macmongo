@@ -4,7 +4,7 @@
   },
   "name": "macmongo",
   "description": "A mongodb helper",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "private": false,
   "license" : "UNLICENSED",
   "main": "lib/main",

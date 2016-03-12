@@ -42,3 +42,23 @@ db.configure(config, logger, function(err) {
 })
 
 ```
+
+## APIs
+
+Must be called first, with at least one database referenced in @params
+`configure(params, logger, fn)`
+
+Links a database (a.k.a makes the database available via db[dbname], or db.databases[dbname]), and creates it it doesn't already exists
+`linkDatabase(dbname, fn)`
+
+Links a database (a.k.a makes the database available via db[dbname] if it already exists
+`linkDatabaseIfExists(dbname, fn)`
+
+Links a database (a.k.a makes the database available via db[dbname], or db.databases[dbname]), and creates it if necessary with all specified collections and indexes
+`addDatabase(dbname, collectionsDef, fn)`
+
+Utility function to generate GUIDs, always useful when dealing with databases
+`uid()`
+
+Gets the database layout in json format ({db1:[col1, col2], db2: [col3,etc..]}) -  unlinked databases are not referenced
+`getLayout()`

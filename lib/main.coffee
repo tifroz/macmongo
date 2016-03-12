@@ -26,7 +26,8 @@ MongoClient = (dbname, host, port, options) ->
 	logger.log "Initializing MongoDb server #{host}:#{port} with options", options
 	server = new mongodb.Server(host, port, options)
 	db = new mongodb.Db(dbname, server, {w: 1})
-	logger.log "Created client for the '#{dbname}' db."
+	logger.log "Created client for the '#{dbname}' database."
+
 
 	shortCollectionName = (raw) ->
 		raw.split('.').pop()
@@ -52,11 +53,11 @@ MongoClient = (dbname, host, port, options) ->
 				else
 					throw Error('Can\'t override existing member '+name)
 	
+	getAdmin: ->
+		return db.admin()
+
 	getCollections: ->
 		return collections
-	
-	getClient: ->
-		return db
 	
 	initialize: (params, fn) ->
 		names = _.keys params
@@ -99,12 +100,7 @@ MongoClient = (dbname, host, port, options) ->
 	*				collection2: []
 	*			dbname2:
 	*				collection: []
-	*		options:
-	*			auto_reconnect: true
 	* etc..
-	*
-	* (For definition of options, see See https://mongodb.github.io/node-mongodb-native/api-generated/server.html?highlight=server for options)
-	* 
 	###
 class DB
 	configure: (params, lgger, fn) ->
@@ -130,7 +126,8 @@ class DB
 				fn?(err)
 	
 	### 
-
+	* Links a database (a.k.a makes the database available via db[dbname], or db.databases[dbname]), and creates it if necessary with all specified collections and indexes
+	* 
 	* signature: dbname, [collectionsDef], [fn]
 	* collectionsDef is a plain object, e.g
 	* 	collection1: [<list of indexes>]
@@ -145,26 +142,69 @@ class DB
 			unless _.isArray collectionsDef
 				fn = collectionsDef
 		db = @
-		databases = @databases
 		Seq().seq ->
-			databases[dbname] = new MongoClient(dbname, db._host, db._port, db._options)
-			if dbname in _.keys(db)
-				logger.error "Conflicting database name, db.#{dbname} shortcut is unavailable, use db.databases.#{dbname}"
-			else
-				db[dbname] = databases[dbname]
-			databases[dbname].initialize collectionsDef, this
+			db.linkDatabase dbname, this
 		.seq ->
-			collectionNames = _.keys databases[dbname].getCollections()
+			collections = db.databases[dbname].getCollections()
+			collectionNames = _.keys collections
 			intersect = _.intersection collectionNames, _.keys(db)
 			for collectionName in collectionNames
+				db.databases[dbname][collectionName] = collections[collectionName]
 				if collectionName in intersect
-					logger.warn "Conflicting collections name(s), db.#{collName} shortcut(s) unavailable, use db.#{dbname}.#{collName}"
+					logger.warn "Conflicting collections name(s), db.#{collectionName} shortcut unavailable, use db.databases.#{dbname}.#{collectionName}"
 				else
 					logger.info "OK  db.#{collectionName} is a valid shortcut for db.databases.#{dbname}.#{collectionName}"
-					db[collectionName] = databases[dbname][collectionName]
+					db[collectionName] = db.databases[dbname][collectionName]
 			fn?()
 		.catch (boo)->
 			fn?(boo)
+
+	###
+	* Links a database (a.k.a makes the database available via db[dbname] if it already exists
+	###
+	linkDatabaseIfExists: (dbname, fn)->
+		db = @
+		if db.databases[dbname] isnt undefined
+			logger.log "OK database '#{dbname}' is already linked"
+			return fn?()
+		else if _.keys(db.databases).length is 0 and dontCreate
+			return fn?(new Error("MacMongo can't get an admin"))
+		else
+			Seq().seq ->
+				firstDb = db.databases[_.keys(db.databases)[0]]
+				firstDb.getAdmin().listDatabases this
+			.seq (dbs)->
+				dbnames = _.pluck dbs.databases, "name"
+				if dbname.toLowerCase() not in dbnames
+					return fn?()
+				db.linkDatabase(dbname, this)
+			.seq ->
+				fn?()
+			.catch (boo)->
+				fn?(boo)
+	
+	###
+	* Links a database (a.k.a makes the database available via db[dbname], or db.databases[dbname]), and creates it it doesn't already exists
+	###
+	linkDatabase: (dbname, fn)->
+		db = @
+		if db.databases[dbname] isnt undefined
+			logger.log "OK database '#{dbname}' is already linked"
+			return fn?()
+		Seq().seq ->
+			db.databases[dbname] = new MongoClient(dbname, db._host, db._port, db._options)
+			if dbname in _.keys(db)
+				logger.error "Conflicting database name, db.#{dbname} shortcut is unavailable, use db.databases.#{dbname}"
+			else
+				db[dbname] = db.databases[dbname]
+			db.databases[dbname].initialize {}, this
+		.seq ->
+			fn?()
+		.catch (boo)->
+			fn?(boo)
+
+
+
 
 
 	###*
@@ -192,12 +232,25 @@ class DB
 			res = o
 		return res
 
-	getCollectionNames: ->
+	getCollectionNames: (dbname)->
 		collections = []
-		for name, database of @databases
-			logger.info "#{database} has #{_.keys(database.getCollections())}"
-			collections = collections.concat _.keys(database.getCollections())
+		if dbname is undefined
+			for name, database of @databases
+				logger.info "#{database} has #{_.keys(database.getCollections())}"
+				collections = collections.concat _.keys(database.getCollections())
+		else
+			collections = _.keys(@databases[dbname].getCollections())
 		return collections
+
+	
+	getLayout: ->
+		layout = {}
+		for dbname, database of @databases
+			if layout[dbname] is undefined
+				layout[dbname] = []
+			for colname, collection of database.getCollections()
+				layout[dbname].push colname
+		return layout
 
 	###*
 	* Logs db performance & explain
