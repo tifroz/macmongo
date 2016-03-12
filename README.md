@@ -45,20 +45,25 @@ db.configure(config, logger, function(err) {
 
 ## APIs
 
-Must be called first, with at least one database referenced in @params
-`configure(params, logger, fn)`
+```js
+var db = require("macmongo")
 
-Links a database (a.k.a makes the database available via db[dbname], or db.databases[dbname]), and creates it it doesn't already exists
-`linkDatabase(dbname, fn)`
+// Must be called first, with at least one database referenced in @params
+db.configure(params, logger, callback) 					
 
-Links a database (a.k.a makes the database available via db[dbname] if it already exists
-`linkDatabaseIfExists(dbname, fn)`
+// Links a database (a.k.a makes the database available via db[dbname], or db.databases[dbname]), and creates it it doesn't already exists
+db.linkDatabase(dbname, callback) 									
 
-Links a database (a.k.a makes the database available via db[dbname], or db.databases[dbname]), and creates it if necessary with all specified collections and indexes
-`addDatabase(dbname, collectionsDef, fn)`
+// Links a database (a.k.a makes the database available via db[dbname] if it already exists
+linkDatabaseIfExists(dbname, callback) 					
 
-Utility function to generate GUIDs, always useful when dealing with databases
-`uid()`
+// Links a database (a.k.a makes the database available via db[dbname], or db.databases[dbname]), and creates it if necessary with all specified collections and indexes
+db.addDatabase(dbname, collectionsDef, callback)		
 
-Gets the database layout in json format ({db1:[col1, col2], db2: [col3,etc..]}) -  unlinked databases are not referenced
-`getLayout()`
+// Utility function to generate GUIDs, always useful when dealing with databases. Returns a string
+db.uid() 																					
+
+// Gets the database layout in json format ({db1:[col1, col2], db2: [col3,etc..]}) -  unlinked databases are not referenced
+db.getLayout() 																		
+
+```

@@ -203,10 +203,6 @@ class DB
 		.catch (boo)->
 			fn?(boo)
 
-
-
-
-
 	###*
 	* A utility method to generate GUIDs on the fly
 	###
