@@ -8,11 +8,12 @@
   "private": false,
   "license" : "UNLICENSED",
   "main": "lib/main",
+  "comment": "mongodb old version: 1.2.x",
   "dependencies": {
   	"underscore": "1.7.x",
     "seq": "0.3.x",
     "winston": "0.7.x",
-		"mongodb": "1.2.x",
+		"mongodb": "2.1.7",
 		"maclogger": "0.x"
   },
   "devDependencies": {}

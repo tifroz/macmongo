@@ -14,30 +14,33 @@ assert = require('assert')
 util = require('util')
 Seq = require('seq')
 
-BSON = mongodb.pure().BSON
-
 logger		= console
 dbperf = {}
 
 
-MongoClient = (dbname, host, port, options) ->
-	collections = {}
-	if not dbname then throw new Error 'A database name must be provided to create a new db client'
-	logger.log "Initializing MongoDb server #{host}:#{port} with options", options
-	server = new mongodb.Server(host, port, options)
-	db = new mongodb.Db(dbname, server, {w: 1})
-	logger.log "Created client for the '#{dbname}' database."
+class MongoClient
+	constructor: (@_dbname, @_host, @_port, @_options) ->
+		@collections = {}
+		if not @_dbname then throw new Error 'A database name must be provided to create a new db client'
+		logger.log "Initializing MongoDb server #{@_host}:#{@_port} with options", @_options
+		#db = null
 
 
-	shortCollectionName = (raw) ->
+	#server = new mongodb.Server(host, port, options)
+	#db = new mongodb.Db(dbname, server, {w: 1})
+	#logger.log "Created client for the '#{dbname}' database."
+
+
+	shortCollectionName: (raw) ->
 		raw.split('.').pop()
-	addCollections = (cols, indexesDef) ->
+
+	addCollections: (cols, indexesDef) ->
 		logger.log util.format("indexesDef at %j", indexesDef)
 		for col in cols
 			name = col.collectionName
 			if name.substr(0,6) isnt 'system'
-				if collections[name] is undefined
-					collections[name] = col
+				if @collections[name] is undefined
+					@collections[name] = col
 					logger.log "OK looking at indexes for collection #{name}"
 					if indexesDef[name] isnt undefined
 						for indexDef in indexesDef[name]
@@ -54,38 +57,43 @@ MongoClient = (dbname, host, port, options) ->
 					throw Error('Can\'t override existing member '+name)
 	
 	getAdmin: ->
-		return db.admin()
+		return @db.admin()
 
 	getCollections: ->
-		return collections
+		return @collections
 	
 	initialize: (params, fn) ->
 		names = _.keys params
+		client = @
 		logger.info("MongoClient.init: initializing #{names}")
-		db.open (err, conn) ->
-			Seq().seq ->
-				db.collections(this)
-			.seq (cols) ->
-				addCollections(cols, params)
-				existing = _.pluck(cols, 'collectionName')
-				logger.log("MongoClient.init: existing collections '#{existing}'")
-				missing = _.difference(names, existing)
-				if missing.length > 0
-					logger.info("MongoClient.init: missing collections #{missing}")
-				this(null, missing)
-			.flatten()
-			.parMap (name)->
-				logger.info "Creating missing collection '#{name}'"
-				db.createCollection name, this
-			.unflatten()
-			.seq (cols) ->
-				if cols.length > 0
-					logger.info("MongoClient.init: still missing collections #{_.pluck cols, 'collectionName'}")
-					addCollections(cols, params)
-				fn(null,@)
-			.catch (boo)->
-				logger.error("MongoClient.initialize #{boo}")
-				fn(boo)
+		#db.open (err, conn) ->
+		Seq().seq ->
+			Client = mongodb.MongoClient
+			Client.connect "mongodb://#{client._host}:#{client._port}/#{client._dbname}", {db: {w: 1}, server: client._options}, this
+		.seq (db)->
+			client.db = db
+			client.db.collections(this)
+		.seq (cols) ->
+			client.addCollections(cols, params)
+			existing = _.pluck(cols, 'collectionName')
+			logger.log("MongoClient.init: existing collections '#{existing}'")
+			missing = _.difference(names, existing)
+			if missing.length > 0
+				logger.info("MongoClient.init: missing collections #{missing}")
+			this(null, missing)
+		.flatten()
+		.parMap (name)->
+			logger.info "Creating missing collection '#{name}'"
+			client.db.createCollection name, this
+		.unflatten()
+		.seq (cols) ->
+			if cols.length > 0
+				logger.info("MongoClient.init: still missing collections #{_.pluck cols, 'collectionName'}")
+				client.addCollections(cols, params)
+			fn(null,@)
+		.catch (boo)->
+			logger.error("MongoClient.initialize #{boo}")
+			fn(boo)
 
 
 	###
