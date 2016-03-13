@@ -13,7 +13,6 @@ npm install macmongo
 
 ```js
 
-
 var db = require("macmongo")
 var logger = require("maclogger")
 
@@ -49,7 +48,7 @@ db.configure(config, logger, function(err) {
 var db = require("macmongo")
 
 // Must be called first, with at least one database referenced in @params
-db.configure(params, logger, callback) 					
+db.initialize(params, logger, callback) 					
 
 // Links a database (a.k.a makes the database available via db[dbname], or db.databases[dbname]), and creates it it doesn't already exists
 db.linkDatabase(dbname, callback) 									

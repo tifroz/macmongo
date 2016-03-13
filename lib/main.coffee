@@ -103,7 +103,7 @@ MongoClient = (dbname, host, port, options) ->
 	* etc..
 	###
 class DB
-	configure: (params, lgger, fn) ->
+	initialize: (params, lgger, fn) ->
 		if fn is undefined and lgger?.log is undefined
 			fn = lgger
 		else if lgger isnt undefined
@@ -202,6 +202,10 @@ class DB
 			fn?()
 		.catch (boo)->
 			fn?(boo)
+
+
+
+
 
 	###*
 	* A utility method to generate GUIDs on the fly
