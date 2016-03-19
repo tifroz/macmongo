@@ -20,7 +20,6 @@ dbperf = {}
 
 class MongoClient
 	constructor: (@_dbname, @_host, @_port, @_options) ->
-		@collections = {}
 		if not @_dbname then throw new Error 'A database name must be provided to create a new db client'
 		logger.log "Initializing MongoDb server #{@_host}:#{@_port} with options", @_options
 		#db = null
@@ -35,6 +34,7 @@ class MongoClient
 		raw.split('.').pop()
 
 	addCollections: (cols, indexesDef) ->
+		@collections = {}
 		logger.log util.format("indexesDef at %j", indexesDef)
 		for col in cols
 			name = col.collectionName
@@ -120,6 +120,7 @@ class DB
 		@_host = params.host
 		@_port = params.port
 		@_options = params.options
+		@_linkingInitiated = {}
 		@databases = {}
 		logger.log("DB initializing...")
 		databases = @databases
@@ -172,24 +173,30 @@ class DB
 	###
 	linkDatabaseIfExists: (dbname, fn)->
 		db = @
-		if db.databases[dbname] isnt undefined
+		logger.log "OK linkDatabaseIfExists #{dbname}"
+		if db.databases[dbname]?.collections isnt undefined
 			logger.log "OK database '#{dbname}' is already linked"
 			return fn?()
 		else if _.keys(db.databases).length is 0 and dontCreate
-			return fn?(new Error("MacMongo can't get an admin"))
+			return fn?(new Error("MacMongo can't get an admin (no existing db to get an admin instance off of)"))
 		else
-			Seq().seq ->
-				firstDb = db.databases[_.keys(db.databases)[0]]
-				firstDb.getAdmin().listDatabases this
-			.seq (dbs)->
-				dbnames = _.pluck dbs.databases, "name"
-				if dbname.toLowerCase() not in dbnames
-					return fn?()
-				db.linkDatabase(dbname, this)
-			.seq ->
-				fn?()
-			.catch (boo)->
-				fn?(boo)
+			if @_linkingInitiated[dbname]
+				setTimeout fn, 500 # linking is in progress, just wait for a bit
+			else
+				@_linkingInitiated[dbname] = true
+				Seq().seq ->
+					firstDb = db.databases[_.keys(db.databases)[0]]
+					firstDb.getAdmin().listDatabases this
+				.seq (dbs)->
+					dbnames = _.pluck dbs.databases, "name"
+					if dbname.toLowerCase() not in dbnames
+						return fn?(new Error("#{dbname.toLowerCase()} not found amongst collections of #{dbname} (#{dbnames})"))
+					db.linkDatabase(dbname, this)
+				.seq ->
+					fn?()
+				.catch (boo)->
+					fn?(boo)
+
 	
 	###
 	* Links a database (a.k.a makes the database available via db[dbname], or db.databases[dbname]), and creates it it doesn't already exists
