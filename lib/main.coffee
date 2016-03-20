@@ -172,7 +172,7 @@ class DB
 	###
 	* Links a database (a.k.a makes the database available via db[dbname] if it already exists
 	###
-	linkDatabaseIfExists: (dbname, collectionsDef, fn)->
+	linkDatabaseIfExists: (dbname, fn)->
 		db = @
 		logger.log "OK linkDatabaseIfExists #{dbname}"
 		if db.databases[dbname]?.collections isnt undefined
