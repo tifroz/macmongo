@@ -148,11 +148,12 @@ class DB
 	
 	addDatabase: (dbname, collectionsDef, fn)->
 		if fn is undefined
-			unless _.isArray collectionsDef
+			if _.isFunction collectionsDef
 				fn = collectionsDef
+				collectionsDef = {}
 		db = @
 		Seq().seq ->
-			db.linkDatabase dbname, this
+			db.linkDatabase dbname, collectionsDef, this
 		.seq ->
 			collections = db.databases[dbname].getCollections()
 			collectionNames = _.keys collections
@@ -171,7 +172,7 @@ class DB
 	###
 	* Links a database (a.k.a makes the database available via db[dbname] if it already exists
 	###
-	linkDatabaseIfExists: (dbname, fn)->
+	linkDatabaseIfExists: (dbname, collectionsDef, fn)->
 		db = @
 		logger.log "OK linkDatabaseIfExists #{dbname}"
 		if db.databases[dbname]?.collections isnt undefined
@@ -201,7 +202,11 @@ class DB
 	###
 	* Links a database (a.k.a makes the database available via db[dbname], or db.databases[dbname]), and creates it it doesn't already exists
 	###
-	linkDatabase: (dbname, fn)->
+	linkDatabase: (dbname, collectionsDef, fn)->
+		if fn is undefined
+			if _.isFunction collectionsDef
+				fn = collectionsDef
+				collectionsDef = {}
 		db = @
 		if db.databases[dbname] isnt undefined
 			logger.log "OK database '#{dbname}' is already linked"
@@ -212,7 +217,7 @@ class DB
 				logger.error "Conflicting database name, db.#{dbname} shortcut is unavailable, use db.databases.#{dbname}"
 			else
 				db[dbname] = db.databases[dbname]
-			db.databases[dbname].initialize {}, this
+			db.databases[dbname].initialize collectionsDef, this
 		.seq ->
 			fn?()
 		.catch (boo)->
