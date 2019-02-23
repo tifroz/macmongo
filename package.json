@@ -4,16 +4,16 @@
   },
   "name": "macmongo",
   "description": "A mongodb helper",
-  "version": "0.0.13",
+  "version": "0.0.18",
   "private": false,
   "license" : "UNLICENSED",
   "main": "lib/main",
-  "comment": "mongodb old version: 1.2.x",
+  "comment": "mongodb old version: 2.2.x",
   "dependencies": {
   	"underscore": "1.7.x",
     "seq": "0.3.x",
     "winston": "2.2.x",
-		"mongodb": "2.2.x"
+		"mongodb": "3.1.x"
   },
   "devDependencies": {}
 }

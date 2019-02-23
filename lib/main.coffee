@@ -19,10 +19,20 @@ dbperf = {}
 
 
 class MongoClient
-	constructor: (@_dbname, @_host, @_port, @_options) ->
-		if not @_dbname then throw new Error 'A database name must be provided to create a new db client'
+	constructor: (dbname, host, port, auth, @_options) ->
+		if not dbname then throw new Error 'A database name must be provided to create a new db client'
 		logger.log "Initializing MongoDb server #{@_host}:#{@_port} with options", @_options
-		#db = null
+		if auth?.user and auth.password and auth.database
+			user = encodeURIComponent auth.user
+			password = encodeURIComponent auth.password
+			@_connectUrl = "mongodb://#{user}:#{password}@#{host}:#{port}/#{dbname}?authSource=#{auth.database}"
+			logger.log "Created client for the '#{dbname}' db, authenticated as #{auth.user} (from db #{auth.database})."
+		else
+			@_connectUrl = "mongodb://#{host}:#{port}/#{dbname}"
+			logger.log "Created client for the '#{dbname}' db (no authentication info provided)."
+
+	close: ->
+		@db.close()
 
 
 	#server = new mongodb.Server(host, port, options)
@@ -64,14 +74,14 @@ class MongoClient
 	
 	initialize: (params, fn) ->
 		names = _.keys params
+		connectUrl = @_connectUrl
 		client = @
 		logger.info("MongoClient.init: initializing #{names}")
-		#db.open (err, conn) ->
 		Seq().seq ->
 			Client = mongodb.MongoClient
-			Client.connect "mongodb://#{client._host}:#{client._port}/#{client._dbname}", {db: {w: 1}, server: client._options}, this
-		.seq (db)->
-			client.db = db
+			Client.connect connectUrl, {db: {w: 1}, server: client._options}, this
+		.seq (mongoClient)->
+			client.db = mongoClient.db()
 			client.db.collections(this)
 		.seq (cols) ->
 			client.addCollections(cols, params)
@@ -111,15 +121,12 @@ class MongoClient
 	* etc..
 	###
 class DB
-	initialize: (params, lgger, fn) ->
+	initialize: (@params, lgger, fn) ->
 		if fn is undefined and lgger?.log is undefined
 			fn = lgger
 		else if lgger isnt undefined
 			logger = lgger
 
-		@_host = params.host
-		@_port = params.port
-		@_options = params.options
 		@_linkingInitiated = {}
 		@databases = {}
 		logger.log("DB initializing...")
@@ -133,6 +140,20 @@ class DB
 				fn?()
 			.catch (err) ->
 				fn?(err)
+
+	close: (delay = 1000)->
+		db = @
+		Seq().seq ->
+			setTimeout this, delay
+		.seq ->
+			this(null, _(db.databases).values)
+		.flatten()
+		.seqEach (client)->
+			client.close(this)
+		.catch (err)->
+			if err
+				logger.error err.stack
+
 	
 	### 
 	* Links a database (a.k.a makes the database available via db[dbname], or db.databases[dbname]), and creates it if necessary with all specified collections and indexes
@@ -212,7 +233,8 @@ class DB
 			logger.log "OK database '#{dbname}' is already linked"
 			return fn?()
 		Seq().seq ->
-			db.databases[dbname] = new MongoClient(dbname, db._host, db._port, db._options)
+
+			db.databases[dbname] = new MongoClient(dbname, db.params.host, db.params.port, db.params.auth, db.params.options)
 			if dbname in _.keys(db)
 				logger.error "Conflicting database name, db.#{dbname} shortcut is unavailable, use db.databases.#{dbname}"
 			else
