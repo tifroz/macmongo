@@ -127,8 +127,9 @@ class DB
 		@databases = {}
 		databases = @databases
 		db = @
+		params = @params
 		dbnames = _.keys params?.databases
-		logger.debug("MongoDB initializing databases #{dbnames}")
+		logger.debug(util.format("MongoDB initializing databases #{dbnames} from params %j", params))
 		Seq(dbnames).flatten()
 			.seqEach (dbname)->
 				db.addDatabase dbname, params.databases[dbname], this
