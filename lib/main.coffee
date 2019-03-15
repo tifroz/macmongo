@@ -21,15 +21,15 @@ dbperf = {}
 class MongoClient
 	constructor: (dbname, host, port, auth, @_options) ->
 		if not dbname then throw new Error 'A database name must be provided to create a new db client'
-		logger.log "Initializing MongoDb server #{@_host}:#{@_port} with options", @_options
+		logger.debug "Initializing MongoDb server #{@_host}:#{@_port} with options", @_options
 		if auth?.user and auth.password and auth.database
 			user = encodeURIComponent auth.user
 			password = encodeURIComponent auth.password
 			@_connectUrl = "mongodb://#{user}:#{password}@#{host}:#{port}/#{dbname}?authSource=#{auth.database}"
-			logger.log "Created client for the '#{dbname}' db, authenticated as #{auth.user} (from db #{auth.database})."
+			logger.debug "Created client for the '#{dbname}' db, authenticated as #{auth.user} (from db #{auth.database})."
 		else
 			@_connectUrl = "mongodb://#{host}:#{port}/#{dbname}"
-			logger.log "Created client for the '#{dbname}' db (no authentication info provided)."
+			logger.debug "Created client for the '#{dbname}' db (no authentication info provided)."
 
 	close: ->
 		@db.close()
@@ -37,7 +37,7 @@ class MongoClient
 
 	#server = new mongodb.Server(host, port, options)
 	#db = new mongodb.Db(dbname, server, {w: 1})
-	#logger.log "Created client for the '#{dbname}' database."
+	#logger.debug "Created client for the '#{dbname}' database."
 
 
 	shortCollectionName: (raw) ->
@@ -45,13 +45,13 @@ class MongoClient
 
 	addCollections: (cols, indexesDef) ->
 		@collections = {}
-		logger.log util.format("indexesDef at %j", indexesDef)
+		logger.debug util.format("indexesDef at %j", indexesDef)
 		for col in cols
 			name = col.collectionName
 			if name.substr(0,6) isnt 'system'
 				if @collections[name] is undefined
 					@collections[name] = col
-					logger.log "OK looking at indexes for collection #{name}"
+					logger.debug "OK looking at indexes for collection #{name}"
 					if indexesDef[name] isnt undefined
 						for indexDef in indexesDef[name]
 							ensureIndexCallback = (name)->
@@ -59,7 +59,7 @@ class MongoClient
 									if err
 										logger.error("ensureIndex",err)
 									else
-										logger.log util.format("Collection #{name} has index named #{indexName}")
+										logger.debug util.format("Collection #{name} has index named #{indexName}")
 							
 							col.ensureIndex indexDef, background: true,  ensureIndexCallback(name)
 				
@@ -86,7 +86,7 @@ class MongoClient
 		.seq (cols) ->
 			client.addCollections(cols, params)
 			existing = _.pluck(cols, 'collectionName')
-			logger.log("MongoClient.init: existing collections '#{existing}'")
+			logger.debug("MongoClient.init: existing collections '#{existing}'")
 			missing = _.difference(names, existing)
 			if missing.length > 0
 				logger.info("MongoClient.init: missing collections #{missing}")
@@ -129,7 +129,7 @@ class DB
 
 		@_linkingInitiated = {}
 		@databases = {}
-		logger.log("DB initializing...")
+		logger.debug("DB initializing...")
 		databases = @databases
 		db = @
 		dbnames = _.keys params?.databases
@@ -195,9 +195,9 @@ class DB
 	###
 	linkDatabaseIfExists: (dbname, fn)->
 		db = @
-		logger.log "OK linkDatabaseIfExists #{dbname}"
+		logger.debug "OK linkDatabaseIfExists #{dbname}"
 		if db.databases[dbname]?.collections isnt undefined
-			logger.log "OK database '#{dbname}' is already linked"
+			logger.debug "OK database '#{dbname}' is already linked"
 			return fn?()
 		else if _.keys(db.databases).length is 0 and dontCreate
 			return fn?(new Error("MacMongo can't get an admin (no existing db to get an admin instance off of)"))
@@ -230,7 +230,7 @@ class DB
 				collectionsDef = {}
 		db = @
 		if db.databases[dbname] isnt undefined
-			logger.log "OK database '#{dbname}' is already linked"
+			logger.debug "OK database '#{dbname}' is already linked"
 			return fn?()
 		Seq().seq ->
 
@@ -307,9 +307,9 @@ class DB
 					logger.warn('db.perf.query', cursor.selector)
 					logger.warn('db.perf.explain', doc)
 				else
-					logger.log("db.perf.#{collectionName}","#{doc.nscanned} records scanned, #{doc.n} returned in #{doc.millis}ms")
-					logger.log('db.perf.query', cursor.selector)
-					logger.log('db.perf.explain', doc)
+					logger.debug("db.perf.#{collectionName}","#{doc.nscanned} records scanned, #{doc.n} returned in #{doc.millis}ms")
+					logger.debug('db.perf.query', cursor.selector)
+					logger.debug('db.perf.explain', doc)
 				stats = dbperf[collectionName] ?= {total: 0, min: 0, max: 0, count: 0, collection: collectionName}
 				stats.min = Math.min(stats.min, doc.millis)
 				stats.max = Math.max(stats.max, doc.millis)
