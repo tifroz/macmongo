@@ -35,10 +35,6 @@ class MongoClient
 		@db.close()
 
 
-	#server = new mongodb.Server(host, port, options)
-	#db = new mongodb.Db(dbname, server, {w: 1})
-	#logger.debug "Created client for the '#{dbname}' database."
-
 
 	shortCollectionName: (raw) ->
 		raw.split('.').pop()
@@ -129,10 +125,10 @@ class DB
 
 		@_linkingInitiated = {}
 		@databases = {}
-		logger.debug("DB initializing...")
 		databases = @databases
 		db = @
 		dbnames = _.keys params?.databases
+		logger.debug("MongoDB initializing databases #{dbnames}")
 		Seq(dbnames).flatten()
 			.seqEach (dbname)->
 				db.addDatabase dbname, params.databases[dbname], this
