@@ -4,7 +4,7 @@
   },
   "name": "macmongo",
   "description": "A mongodb helper",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "private": false,
   "license" : "UNLICENSED",
   "main": "lib/main",
@@ -12,7 +12,7 @@
   "dependencies": {
   	"underscore":"1.10.2",
     "seq": "0.3.x",
-    "winston": "2.3.1",
+    "winston": "3.2.1",
 		"mongodb": "3.1.x"
   },
   "devDependencies": {}
